@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+import importlib
 import importlib.util
 import sys
 
@@ -18,7 +19,7 @@ class PluginSpec:
 
 
 def _load_module(path: Path):
-    mod_name = f"pocket_plugin_{path.stem}_{abs(hash(path)) % 10_000_000}"
+    mod_name = f"pocket_plugin_{path.stem}_{abs(hash(str(path))) % 10_000_000}"
     spec = importlib.util.spec_from_file_location(mod_name, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {path}")
@@ -51,19 +52,34 @@ def _spec_from_module(module: Any, path: Path | None = None) -> PluginSpec | Non
 
 def load_builtin_plugins() -> dict[str, PluginSpec]:
     out: dict[str, PluginSpec] = {}
-    builtin_dir = Path(__file__).resolve().parent / "builtin"
-    if not builtin_dir.is_dir():
-        return out
-    for path in sorted(builtin_dir.glob("*.py")):
-        if path.name.startswith("_"):
-            continue
+    # Import by module path — works in frozen builds
+    for mod_name in (
+        "pocket_agent.plugins.builtin.echo",
+        "pocket_agent.plugins.builtin.time",
+    ):
         try:
-            mod = _load_module(path)
-            spec = _spec_from_module(mod, path)
+            mod = importlib.import_module(mod_name)
+            spec = _spec_from_module(mod)
         except Exception:
             continue
         if spec:
             out[spec.name] = spec
+
+    # Dev fallback: also scan folder if present as files
+    builtin_dir = Path(__file__).resolve().parent / "builtin"
+    if builtin_dir.is_dir():
+        for path in sorted(builtin_dir.glob("*.py")):
+            if path.name.startswith("_"):
+                continue
+            if path.stem in out:
+                continue
+            try:
+                mod = _load_module(path)
+                spec = _spec_from_module(mod, path)
+            except Exception:
+                continue
+            if spec:
+                out[spec.name] = spec
     return out
 
 

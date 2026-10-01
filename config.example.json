@@ -3,7 +3,7 @@
   "base_url": "https://api.openai.com/v1",
   "model": "gpt-4o-mini",
   "system_prompt_file": "system_prompt.txt",
-  "plugins_dir": "plugins_user",
+  "plugins_dir": "plugins",
   "temperature": 0.3,
   "max_tool_rounds": 6
 }
